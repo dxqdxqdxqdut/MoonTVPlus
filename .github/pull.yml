@@ -1,0 +1,5 @@
+version: "1"
+rules:
+  - base: main        # 你的分支
+    upstream: mtvpls:main  # 原作者的分支 (仓库名:分支名)
+    mergeMethod: merge    # 使用合并方式，保留更新记录

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       taskId,
-      message: '扫描任务已启动',
+      message: '扫描完成',
     });
   } catch (error) {
     console.error('启动刷新任务失败:', error);

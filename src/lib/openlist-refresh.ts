@@ -130,26 +130,35 @@ export async function startOpenListRefresh(clearMetaInfo = false): Promise<{ tas
 
   const rootPaths = getRootPaths(openListConfig);
 
-  // 顺序扫描多个根目录
-  performMultiRootScan(
-    taskId,
-    openListConfig.URL,
-    rootPaths,
-    tmdbApiKey,
-    tmdbProxy,
-    tmdbReverseProxy,
-    openListConfig.Username,
-    openListConfig.Password,
-    clearMetaInfo,
-    openListConfig.ScanMode || 'hybrid'
-  ).catch((error) => {
-    console.error('[OpenList Refresh] 后台扫描失败:', error);
+  try {
+    // 改成同步等待扫描完成
+    await performMultiRootScan(
+      taskId,
+      openListConfig.URL,
+      rootPaths,
+      tmdbApiKey,
+      tmdbProxy,
+      tmdbReverseProxy,
+      openListConfig.Username,
+      openListConfig.Password,
+      clearMetaInfo,
+      openListConfig.ScanMode || 'hybrid'
+    );
+
+    // 扫描结束后，保险检查一下 metainfo 是否真的写入成功
+    const metainfoContent = await db.getGlobalValue('video.metainfo');
+    if (!metainfoContent) {
+      failScanTask(taskId, '扫描结束后未写入 video.metainfo');
+      throw new Error('扫描结束后未写入 video.metainfo');
+    }
+
+    return { taskId };
+  } catch (error) {
+    console.error('[OpenList Refresh] 同步扫描失败:', error);
     failScanTask(taskId, (error as Error).message);
-  });
-
-  return { taskId };
+    throw error;
+  }
 }
-
 /**
  * 扫描多个根目录
  */

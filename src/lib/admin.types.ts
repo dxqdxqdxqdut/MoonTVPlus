@@ -151,8 +151,6 @@ export interface AdminConfig {
       Enabled: boolean;
       Cookie: string;
       SavePath: string;
-      PlayTempSavePath: string;
-      OpenListTempPath: string;
     };
     Mobile?: {
       Enabled: boolean;

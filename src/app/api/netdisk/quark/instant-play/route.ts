@@ -2,20 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
-import { createQuarkInstantPlayFolder } from '@/lib/netdisk/quark.client';
+import { listQuarkShareVideos } from '@/lib/netdisk/quark.client';
+import { createQuarkNetdiskSession } from '@/lib/netdisk/quark-session-cache';
 import { NETDISK_QUARK_SOURCE } from '@/lib/netdisk/source';
 import { hasFeaturePermission } from '@/lib/permissions';
-import { base58Encode } from '@/lib/utils';
 
 export const runtime = 'nodejs';
-
-function joinPath(...parts: string[]) {
-  const joined = parts
-    .filter(Boolean)
-    .join('/')
-    .replace(/\/+/g, '/');
-  return joined.startsWith('/') ? joined : `/${joined}`;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,54 +26,26 @@ export async function POST(request: NextRequest) {
 
     const config = await getConfig();
     const quarkConfig = config.NetDiskConfig?.Quark;
-
     if (!quarkConfig?.Enabled || !quarkConfig.Cookie) {
       return NextResponse.json({ error: '夸克网盘未配置或未启用' }, { status: 400 });
     }
 
-    const result = await createQuarkInstantPlayFolder(quarkConfig.Cookie, {
+    const result = await listQuarkShareVideos(shareUrl, quarkConfig.Cookie, passcode || '');
+    const session = createQuarkNetdiskSession({
+      title: title || result.title,
       shareUrl,
       passcode,
-      playTempSavePath: quarkConfig.PlayTempSavePath,
-      title,
+      shareId: result.shareId,
+      shareToken: result.shareToken,
+      files: result.files,
     });
-
-    if (!result.folderName) {
-      throw new Error('未生成临时播放目录');
-    }
-
-    const openlistFolderPath = joinPath(
-      quarkConfig.OpenListTempPath,
-      result.folderName
-    );
-
-    if (
-      config.OpenListConfig?.Enabled &&
-      config.OpenListConfig.URL &&
-      config.OpenListConfig.Username &&
-      config.OpenListConfig.Password
-    ) {
-      try {
-        const { OpenListClient } = await import('@/lib/openlist.client');
-        const openListClient = new OpenListClient(
-          config.OpenListConfig.URL,
-          config.OpenListConfig.Username,
-          config.OpenListConfig.Password
-        );
-        await openListClient.refreshDirectory(quarkConfig.OpenListTempPath || '/');
-        await openListClient.refreshDirectory(openlistFolderPath);
-      } catch (refreshError) {
-        console.warn('[quark instant-play] 刷新 OpenList 临时目录失败:', refreshError);
-      }
-    }
 
     return NextResponse.json({
       success: true,
       source: NETDISK_QUARK_SOURCE,
-      id: base58Encode(openlistFolderPath),
-      title: title || result.folderName,
-      openlistFolderPath,
-      ...result,
+      id: session.id,
+      title: title || result.title,
+      fileCount: result.files.length,
     });
   } catch (error) {
     return NextResponse.json(

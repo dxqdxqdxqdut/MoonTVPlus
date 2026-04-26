@@ -18,6 +18,12 @@ import {
   parseMobileNetdiskId,
   refreshMobileNetdiskSession,
 } from '@/lib/netdisk/mobile-session-cache';
+import {
+  createQuarkNetdiskSession,
+  getQuarkNetdiskSession,
+  parseQuarkNetdiskId,
+  refreshQuarkNetdiskSession,
+} from '@/lib/netdisk/quark-session-cache';
 import { LEGACY_QUARK_TEMP_SOURCE, NETDISK_BAIDU_SOURCE, NETDISK_MOBILE_SOURCE, NETDISK_QUARK_SOURCE, normalizeNetdiskSource } from '@/lib/netdisk/source';
 import {
   executeSavedSourceScript,
@@ -433,106 +439,39 @@ export async function GET(request: NextRequest) {
   if (sourceCode === NETDISK_QUARK_SOURCE || sourceCode === LEGACY_QUARK_TEMP_SOURCE) {
     try {
       const config = await getConfig();
-      const openListConfig = config.OpenListConfig;
-
-      if (
-        !openListConfig ||
-        !openListConfig.Enabled ||
-        !openListConfig.URL ||
-        !openListConfig.Username ||
-        !openListConfig.Password
-      ) {
-        throw new Error('OpenList 未配置或未启用');
+      const quarkConfig = config.NetDiskConfig?.Quark;
+      if (!quarkConfig?.Enabled || !quarkConfig.Cookie) {
+        throw new Error('夸克网盘未配置或未启用');
       }
-
-      const { base58Decode } = await import('@/lib/utils');
-      const { OpenListClient } = await import('@/lib/openlist.client');
       const { parseVideoFileName } = await import('@/lib/video-parser');
 
-      const folderPath = base58Decode(id);
-      if (!folderPath) {
-        throw new Error('无效的临时播放目录');
+      let session = refreshQuarkNetdiskSession(id) || getQuarkNetdiskSession(id);
+      if (!session) {
+        const payload = parseQuarkNetdiskId(id);
+        const { listQuarkShareVideos } = await import('@/lib/netdisk/quark.client');
+        const result = await listQuarkShareVideos(payload.shareUrl, quarkConfig.Cookie, payload.passcode || '');
+        session = createQuarkNetdiskSession({
+          title: title || result.title,
+          shareUrl: payload.shareUrl,
+          passcode: payload.passcode,
+          shareId: result.shareId,
+          shareToken: result.shareToken,
+          files: result.files,
+        });
+      }
+      if (!session) {
+        throw new Error('夸克网盘播放信息恢复失败');
       }
 
-      const client = new OpenListClient(
-        openListConfig.URL,
-        openListConfig.Username,
-        openListConfig.Password
-      );
-
-      const videoExtensions = ['.mp4', '.mkv', '.avi', '.m3u8', '.flv', '.ts', '.mov', '.wmv', '.webm', '.rmvb', '.rm', '.mpg', '.mpeg', '.3gp', '.f4v', '.m4v', '.vob'];
-
-      const listTempDirectory = async (currentPath: string, page: number, pageSize: number) => {
-        const load = async (refresh = false) => client.listDirectory(currentPath, page, pageSize, refresh);
-
-        let response = await load(page === 1);
-        if (response.code === 200) {
-          return response;
-        }
-
-        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
-        await client.refreshDirectory(parentPath);
-        response = await load(true);
-
-        if (response.code !== 200) {
-          const message = response.message || '目录不存在或 OpenList 路径未映射';
-          throw new Error(`读取临时目录失败: ${message}（路径: ${currentPath}）`);
-        }
-
-        return response;
-      };
-
-      const collectFiles = async (currentPath: string): Promise<Array<{ path: string; name: string }>> => {
-        const allFiles: Array<{ path: string; name: string }> = [];
-        let currentPage = 1;
-        const pageSize = 100;
-        let hasMore = true;
-
-        while (hasMore) {
-          const response = await listTempDirectory(currentPath, currentPage, pageSize);
-
-          for (const item of response.data.content) {
-            const itemPath = `${currentPath}${currentPath.endsWith('/') ? '' : '/'}${item.name}`;
-            if (item.is_dir) {
-              const nested = await collectFiles(itemPath);
-              allFiles.push(...nested);
-            } else if (
-              !item.name.startsWith('.') &&
-              videoExtensions.some((ext) => item.name.toLowerCase().endsWith(ext))
-            ) {
-              allFiles.push({
-                path: itemPath,
-                name: item.name,
-              });
-            }
-          }
-
-          hasMore = !(
-            response.data.content.length < pageSize ||
-            currentPage * pageSize >= response.data.total
-          );
-          currentPage += 1;
-        }
-
-        return allFiles;
-      };
-
-      const files = await collectFiles(folderPath);
-      if (files.length === 0) {
-        throw new Error('临时播放目录中没有视频文件');
-      }
-
-      const episodes = files
+      const quarkSession = session;
+      const episodes = quarkSession.files
         .map((file, index) => {
           const parsed = parseVideoFileName(file.name);
-          const fileDir = file.path.substring(0, file.path.lastIndexOf('/')) || '/';
           return {
+            originalIndex: index,
             fileName: file.name,
-            fileDir,
             episode: parsed.episode || index + 1,
-            title:
-              parsed.title ||
-              (parsed.episode ? `第${parsed.episode}集` : file.name),
+            title: parsed.title || (parsed.episode ? `第${parsed.episode}集` : file.name),
             isOVA: parsed.isOVA,
           };
         })
@@ -546,14 +485,16 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         source: NETDISK_QUARK_SOURCE,
-        source_name: '夸克临时播放',
-        id,
-        title: title || folderPath.split('/').filter(Boolean).pop() || '夸克临时播放',
+        source_name: '夸克网盘',
+        id: quarkSession.id,
+        title: title || quarkSession.title,
         poster: '',
         year: '',
         douban_id: 0,
-        desc: `临时播放目录：${folderPath}`,
-        episodes: episodes.map((ep) => `/api/openlist/play?folder=${encodeURIComponent(ep.fileDir)}&fileName=${encodeURIComponent(ep.fileName)}`),
+        desc: `夸克网盘分享：${quarkSession.shareUrl}`,
+        episodes: episodes.map((ep) => (
+          `/api/netdisk/quark/play?id=${encodeURIComponent(quarkSession.id)}&episodeIndex=${ep.originalIndex}`
+        )),
         episodes_titles: episodes.map((ep) => ep.title),
         proxyMode: false,
       });

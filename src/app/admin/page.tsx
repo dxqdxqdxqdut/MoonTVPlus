@@ -3704,8 +3704,6 @@ const NetDiskConfigComponent = ({
   const [enabled, setEnabled] = useState(false);
   const [cookie, setCookie] = useState('');
   const [savePath, setSavePath] = useState('/');
-  const [playTempSavePath, setPlayTempSavePath] = useState('/');
-  const [openListTempPath, setOpenListTempPath] = useState('/');
   const [mobileEnabled, setMobileEnabled] = useState(false);
   const [mobileAuthorization, setMobileAuthorization] = useState('');
   const [baiduEnabled, setBaiduEnabled] = useState(false);
@@ -3717,8 +3715,6 @@ const NetDiskConfigComponent = ({
     setEnabled(quark?.Enabled || false);
     setCookie(quark?.Cookie || '');
     setSavePath(quark?.SavePath || '/');
-    setPlayTempSavePath(quark?.PlayTempSavePath || '/');
-    setOpenListTempPath(quark?.OpenListTempPath || '/');
     setMobileEnabled(mobile?.Enabled || false);
     setMobileAuthorization(mobile?.Authorization || '');
     setBaiduEnabled(config?.NetDiskConfig?.Baidu?.Enabled || false);
@@ -3736,8 +3732,6 @@ const NetDiskConfigComponent = ({
             Enabled: enabled,
             Cookie: cookie,
             SavePath: savePath,
-            PlayTempSavePath: playTempSavePath,
-            OpenListTempPath: openListTempPath,
           },
           Mobile: {
             Enabled: mobileEnabled,
@@ -3771,7 +3765,6 @@ const NetDiskConfigComponent = ({
             Quark: {
               Cookie: cookie,
               SavePath: savePath,
-              PlayTempSavePath: playTempSavePath,
             },
           }),
         });
@@ -3852,20 +3845,6 @@ const NetDiskConfigComponent = ({
           夸克网盘
         </summary>
         <div className='mt-4 space-y-4'>
-          <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4'>
-            <div className='flex items-center gap-2 mb-2'>
-              <Cloud className='w-5 h-5 text-blue-600 dark:text-blue-400' />
-              <span className='text-sm font-medium text-blue-800 dark:text-blue-300'>
-                夸克网盘说明
-              </span>
-            </div>
-            <div className='text-sm text-blue-700 dark:text-blue-400 space-y-1'>
-              <p>• 转存：把整个分享保存到夸克正式目录。</p>
-              <p>• 立即播放：将分享内所有视频文件转存到临时播放目录，再通过 OpenList 临时目录直接播放。</p>
-              <p>• OpenList 临时目录必须映射到夸克临时播放目录，否则立即播放无法找到文件。</p>
-            </div>
-          </div>
-
           <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
             <div>
               <h3 className='text-sm font-medium text-gray-900 dark:text-gray-100'>
@@ -3912,37 +3891,6 @@ const NetDiskConfigComponent = ({
               placeholder='/影视/正式转存'
               className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed'
             />
-          </div>
-
-          <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              播放临时转存位置
-            </label>
-            <input
-              type='text'
-              value={playTempSavePath}
-              onChange={(e) => setPlayTempSavePath(e.target.value)}
-              disabled={!enabled}
-              placeholder='/影视/.play-temp'
-              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed'
-            />
-          </div>
-
-          <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              OpenList 临时目录
-            </label>
-            <input
-              type='text'
-              value={openListTempPath}
-              onChange={(e) => setOpenListTempPath(e.target.value)}
-              disabled={!enabled}
-              placeholder='/Quark/影视/.play-temp'
-              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed'
-            />
-            <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              OpenList 中能访问到临时播放目录的路径。
-            </p>
           </div>
 
           <div className='flex gap-3'>

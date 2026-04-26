@@ -669,8 +669,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
         Enabled: false,
         Cookie: '',
         SavePath: '/',
-        PlayTempSavePath: '/',
-        OpenListTempPath: '/',
       },
       Mobile: {
         Enabled: false,
@@ -688,8 +686,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       Enabled: false,
       Cookie: '',
       SavePath: '/',
-      PlayTempSavePath: '/',
-      OpenListTempPath: '/',
     };
   }
 

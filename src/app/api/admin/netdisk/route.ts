@@ -60,8 +60,6 @@ export async function POST(request: NextRequest) {
         Enabled: Boolean(Quark?.Enabled),
         Cookie: normalizedCookie,
         SavePath: Quark?.SavePath || '/',
-        PlayTempSavePath: Quark?.PlayTempSavePath || '/',
-        OpenListTempPath: Quark?.OpenListTempPath || '/',
       };
       adminConfig.NetDiskConfig.Mobile = {
         Enabled: Boolean(Mobile?.Enabled),

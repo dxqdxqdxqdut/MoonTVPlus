@@ -30,7 +30,13 @@ import {
   parseTianyiNetdiskId,
   refreshTianyiNetdiskSession,
 } from '@/lib/netdisk/tianyi-session-cache';
-import { LEGACY_QUARK_TEMP_SOURCE, NETDISK_BAIDU_SOURCE, NETDISK_MOBILE_SOURCE, NETDISK_QUARK_SOURCE, NETDISK_TIANYI_SOURCE, normalizeNetdiskSource } from '@/lib/netdisk/source';
+import {
+  createPan123NetdiskSession,
+  getPan123NetdiskSession,
+  parsePan123NetdiskId,
+  refreshPan123NetdiskSession,
+} from '@/lib/netdisk/pan123-session-cache';
+import { LEGACY_QUARK_TEMP_SOURCE, NETDISK_123_SOURCE, NETDISK_BAIDU_SOURCE, NETDISK_MOBILE_SOURCE, NETDISK_QUARK_SOURCE, NETDISK_TIANYI_SOURCE, normalizeNetdiskSource } from '@/lib/netdisk/source';
 import {
   executeSavedSourceScript,
   normalizeScriptDetailResult,
@@ -39,6 +45,30 @@ import {
 } from '@/lib/source-script';
 
 export const runtime = 'nodejs';
+
+function formatNetdiskEpisodeTitle(parsed: {
+  season?: number;
+  episode?: number;
+}, fallback: string) {
+  if (parsed.season && parsed.episode) {
+    const season = String(Math.trunc(parsed.season)).padStart(2, '0');
+    const episodeValue = parsed.episode;
+    const episode =
+      Number.isInteger(episodeValue)
+        ? String(Math.trunc(episodeValue)).padStart(2, '0')
+        : String(episodeValue);
+    return `S${season}E${episode}`;
+  }
+
+  if (parsed.episode) {
+    const episodeValue = parsed.episode;
+    return Number.isInteger(episodeValue)
+      ? `第${Math.trunc(episodeValue)}集`
+      : `第${episodeValue}集`;
+  }
+
+  return fallback;
+}
 
 /**
  * 根据 source 和 id 直接获取视频详情
@@ -327,16 +357,14 @@ export async function GET(request: NextRequest) {
       const { parseVideoFileName } = await import('@/lib/video-parser');
       const parsedFiles = mobileSession.files.map((file, index) => {
         const parsed = parseVideoFileName(file.name);
-        return {
-          ...file,
-          originalIndex: index,
-          sortEpisode: parsed.episode || index + 1,
-          isOVA: parsed.isOVA,
-          displayTitle:
-            parsed.title ||
-            (parsed.episode ? `第${parsed.episode}集` : file.name),
-        };
-      }).sort((a, b) => {
+          return {
+            ...file,
+            originalIndex: index,
+            sortEpisode: parsed.episode || index + 1,
+            isOVA: parsed.isOVA,
+            displayTitle: formatNetdiskEpisodeTitle(parsed, file.name),
+          };
+        }).sort((a, b) => {
         if (a.isOVA && !b.isOVA) return 1;
         if (!a.isOVA && b.isOVA) return -1;
         return a.sortEpisode !== b.sortEpisode
@@ -407,8 +435,7 @@ export async function GET(request: NextRequest) {
             originalIndex: index,
             sortEpisode: parsed.episode || index + 1,
             isOVA: parsed.isOVA,
-            displayTitle:
-              parsed.title || (parsed.episode ? `第${parsed.episode}集` : file.name),
+            displayTitle: formatNetdiskEpisodeTitle(parsed, file.name),
           };
         })
         .sort((a, b) => {
@@ -485,8 +512,7 @@ export async function GET(request: NextRequest) {
             originalIndex: index,
             sortEpisode: parsed.episode || index + 1,
             isOVA: parsed.isOVA,
-            displayTitle:
-              parsed.title || (parsed.episode ? `第${parsed.episode}集` : file.name),
+            displayTitle: formatNetdiskEpisodeTitle(parsed, file.name),
           };
         })
         .sort((a, b) => {
@@ -513,6 +539,75 @@ export async function GET(request: NextRequest) {
         proxyMode: false,
       });
     } catch (error) {
+      return NextResponse.json(
+        { error: (error as Error).message },
+        { status: 500 }
+      );
+    }
+  }
+
+  if (sourceCode === NETDISK_123_SOURCE) {
+    try {
+      const config = await getConfig();
+      const pan123Config = config.NetDiskConfig?.Pan123;
+      if (!pan123Config?.Enabled || !pan123Config.Account || !pan123Config.Password) {
+        throw new Error('123网盘未配置或未启用');
+      }
+
+      let session = refreshPan123NetdiskSession(id) || getPan123NetdiskSession(id);
+      if (!session) {
+        const payload = parsePan123NetdiskId(id);
+        const { listPan123ShareVideos } = await import('@/lib/netdisk/pan123.client');
+        const result = await listPan123ShareVideos(payload.shareUrl, payload.passcode || '');
+        session = createPan123NetdiskSession({
+          title: title || result.title,
+          shareUrl: payload.shareUrl,
+          passcode: payload.passcode,
+          files: result.files,
+        });
+      }
+      if (!session) {
+        throw new Error('123网盘播放信息恢复失败');
+      }
+
+      const pan123Session = session;
+      const { parseVideoFileName } = await import('@/lib/video-parser');
+      const parsedFiles = pan123Session.files
+        .map((file, index) => {
+          const parsed = parseVideoFileName(file.fileName);
+          return {
+            ...file,
+            originalIndex: index,
+            sortEpisode: parsed.episode || index + 1,
+            isOVA: parsed.isOVA,
+            displayTitle: formatNetdiskEpisodeTitle(parsed, file.fileName),
+          };
+        })
+        .sort((a, b) => {
+          if (a.isOVA && !b.isOVA) return 1;
+          if (!a.isOVA && b.isOVA) return -1;
+          return a.sortEpisode !== b.sortEpisode
+            ? a.sortEpisode - b.sortEpisode
+            : a.fileName.localeCompare(b.fileName, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+        });
+
+      return NextResponse.json({
+        source: NETDISK_123_SOURCE,
+        source_name: '123网盘',
+        id: pan123Session.id,
+        title: title || pan123Session.title,
+        poster: '',
+        year: '',
+        douban_id: 0,
+        desc: `123网盘分享：${pan123Session.shareUrl}`,
+        episodes: parsedFiles.map((file) => (
+          `/api/netdisk/123/play?id=${encodeURIComponent(pan123Session.id)}&episodeIndex=${file.originalIndex}`
+        )),
+        episodes_titles: parsedFiles.map((file) => file.displayTitle),
+        proxyMode: false,
+      });
+    } catch (error) {
+      console.error('[netdisk-123][source-detail] error', error);
       return NextResponse.json(
         { error: (error as Error).message },
         { status: 500 }
@@ -555,7 +650,7 @@ export async function GET(request: NextRequest) {
             originalIndex: index,
             fileName: file.name,
             episode: parsed.episode || index + 1,
-            title: parsed.title || (parsed.episode ? `第${parsed.episode}集` : file.name),
+            title: formatNetdiskEpisodeTitle(parsed, file.name),
             isOVA: parsed.isOVA,
           };
         })

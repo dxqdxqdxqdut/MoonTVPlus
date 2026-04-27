@@ -165,6 +165,11 @@ export interface AdminConfig {
       Account: string;
       Password: string;
     };
+    Pan123?: {
+      Enabled: boolean;
+      Account: string;
+      Password: string;
+    };
   };
   AIConfig?: {
     Enabled: boolean; // 是否启用AI问片功能

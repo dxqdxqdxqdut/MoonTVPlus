@@ -11,6 +11,11 @@ import {
   normalizeMobileAuthorization,
 } from '@/lib/netdisk/mobile.client';
 import {
+  normalizePan123Account,
+  normalizePan123Password,
+  validatePan123Credentials,
+} from '@/lib/netdisk/pan123.client';
+import {
   assertQuarkCookieHeaderSafe,
   normalizeQuarkCookie,
   validateQuarkCookieReadable,
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { action, Quark, Mobile, Baidu, Tianyi, provider } = body;
+    const { action, Quark, Mobile, Baidu, Tianyi, Pan123, provider } = body;
     const adminConfig = await getConfig();
 
     if (action === 'save') {
@@ -57,6 +62,8 @@ export async function POST(request: NextRequest) {
       const normalizedBaiduCookie = Baidu?.Cookie ? assertBaiduCookieHeaderSafe(Baidu.Cookie) : '';
       const normalizedTianyiAccount = Tianyi?.Account ? normalizeTianyiAccount(Tianyi.Account) : '';
       const normalizedTianyiPassword = Tianyi?.Password ? normalizeTianyiPassword(Tianyi.Password) : '';
+      const normalizedPan123Account = Pan123?.Account ? normalizePan123Account(Pan123.Account) : '';
+      const normalizedPan123Password = Pan123?.Password ? normalizePan123Password(Pan123.Password) : '';
 
       adminConfig.NetDiskConfig = adminConfig.NetDiskConfig || {};
       adminConfig.NetDiskConfig.Quark = {
@@ -76,6 +83,11 @@ export async function POST(request: NextRequest) {
         Enabled: Boolean(Tianyi?.Enabled),
         Account: normalizedTianyiAccount,
         Password: normalizedTianyiPassword,
+      };
+      adminConfig.NetDiskConfig.Pan123 = {
+        Enabled: Boolean(Pan123?.Enabled),
+        Account: normalizedPan123Account,
+        Password: normalizedPan123Password,
       };
 
       await db.saveAdminConfig(adminConfig);
@@ -117,6 +129,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           message: '天翼云盘账号密码可用',
+        });
+      }
+      if (provider === 'pan123') {
+        if (!Pan123?.Account || !Pan123?.Password) {
+          return NextResponse.json({ error: '请先填写123网盘账号和密码' }, { status: 400 });
+        }
+        await validatePan123Credentials(
+          normalizePan123Account(Pan123.Account),
+          normalizePan123Password(Pan123.Password)
+        );
+        return NextResponse.json({
+          success: true,
+          message: '123网盘账号密码可用',
         });
       }
 

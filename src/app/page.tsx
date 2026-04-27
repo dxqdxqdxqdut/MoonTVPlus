@@ -24,6 +24,7 @@ import HttpWarningDialog from '@/components/HttpWarningDialog';
 import PageLayout from '@/components/PageLayout';
 import ScrollableRow from '@/components/ScrollableRow';
 import { useSite } from '@/components/SiteProvider';
+import Toast, { ToastProps } from '@/components/Toast';
 import VideoCard from '@/components/VideoCard';
 
 // 首页模块配置接口
@@ -70,20 +71,129 @@ function HomeClient() {
   const [mangaEnabled, setMangaEnabled] = useState(false);
   const [showDirectPlayDialog, setShowDirectPlayDialog] = useState(false);
   const [directPlayUrl, setDirectPlayUrl] = useState('');
+  const [directPlaySubmitting, setDirectPlaySubmitting] = useState(false);
+  const [toast, setToast] = useState<ToastProps | null>(null);
+
+  const detectNetdiskLink = (url: string): {
+    provider: 'quark' | 'mobile' | 'baidu' | 'tianyi' | '123';
+    shareUrl: string;
+    passcode?: string;
+  } | null => {
+    const trimmed = url.trim();
+
+    const pickPasscode = (...values: Array<string | undefined>) =>
+      values.map((item) => item?.trim()).find(Boolean);
+
+    const inlinePasscode = (text: string) =>
+      pickPasscode(
+        text.match(/(?:提取码|访问码|密码)\s*[:：=]?\s*([a-zA-Z0-9]{4,8})/i)?.[1],
+        text.match(/[?&](?:pwd|passcode|accessCode)=([^&\s]+)/i)?.[1]
+      );
+
+    if (/https:\/\/(?:www\.)?123(?:684|865|912|pan)\.(?:com|cn)\/s\//i.test(trimmed)) {
+      return {
+        provider: '123',
+        shareUrl: trimmed,
+        passcode: pickPasscode(
+          trimmed.match(/[?&]pwd=([^&]+)/i)?.[1],
+          inlinePasscode(trimmed)
+        ),
+      };
+    }
+
+    if (/https:\/\/cloud\.189\.cn\/(web\/share\?code=|t\/)/i.test(trimmed) || /https:\/\/h5\.cloud\.189\.cn\/share\.html#\/t\//i.test(trimmed)) {
+      return {
+        provider: 'tianyi',
+        shareUrl: trimmed,
+        passcode: pickPasscode(
+          trimmed.match(/[?&]pwd=([^&]+)/i)?.[1],
+          inlinePasscode(trimmed)
+        ),
+      };
+    }
+
+    if (/pan\.baidu\.com\/(s\/|wap\/init\?surl=)/i.test(trimmed)) {
+      return {
+        provider: 'baidu',
+        shareUrl: trimmed,
+        passcode: pickPasscode(
+          trimmed.match(/[?&](?:pwd|accessCode)=([^&]+)/i)?.[1],
+          inlinePasscode(trimmed)
+        ),
+      };
+    }
+
+    if (/https:\/\/pan\.quark\.cn\/s\//i.test(trimmed)) {
+      return {
+        provider: 'quark',
+        shareUrl: trimmed,
+        passcode: pickPasscode(
+          trimmed.match(/[?&](?:pwd|passcode)=([^&]+)/i)?.[1],
+          inlinePasscode(trimmed)
+        ),
+      };
+    }
+
+    if (/https:\/\/(?:yun|caiyun)\.139\.com\//i.test(trimmed)) {
+      return { provider: 'mobile', shareUrl: trimmed };
+    }
+
+    return null;
+  };
 
   const handleDirectPlay = () => {
     setDirectPlayUrl('');
     setShowDirectPlayDialog(true);
   };
 
-  const submitDirectPlay = () => {
+  const submitDirectPlay = async () => {
     const trimmed = directPlayUrl.trim();
     if (!trimmed) return;
-    const encoded = base58Encode(trimmed);
-    if (!encoded) return;
-    setShowDirectPlayDialog(false);
-    setDirectPlayUrl('');
-    router.push(`/play?source=directplay&id=${encodeURIComponent(encoded)}`);
+    setDirectPlaySubmitting(true);
+    try {
+      const netdisk = detectNetdiskLink(trimmed);
+      if (netdisk) {
+        const source =
+          netdisk.provider === 'mobile'
+            ? 'netdisk-mobile'
+            : netdisk.provider === 'baidu'
+              ? 'netdisk-baidu'
+              : netdisk.provider === 'tianyi'
+                ? 'netdisk-tianyi'
+                : netdisk.provider === '123'
+                  ? 'netdisk-123'
+                  : 'netdisk-quark';
+        const id = base58Encode(
+          JSON.stringify({
+            shareUrl: netdisk.shareUrl,
+            passcode: netdisk.passcode || '',
+          })
+        );
+        if (!id) {
+          throw new Error('网盘链接编码失败');
+        }
+        const targetUrl = `/play?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}&title=${encodeURIComponent('网盘直链播放')}`;
+        setShowDirectPlayDialog(false);
+        setDirectPlayUrl('');
+        window.location.assign(targetUrl);
+        return;
+      }
+
+      const encoded = base58Encode(trimmed);
+      if (!encoded) return;
+      const targetUrl = `/play?source=directplay&id=${encodeURIComponent(encoded)}`;
+      setShowDirectPlayDialog(false);
+      setDirectPlayUrl('');
+      window.location.assign(targetUrl);
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : '播放失败',
+        type: 'error',
+        onClose: () => setToast(null),
+      });
+    } finally {
+      setDirectPlaySubmitting(false);
+    }
   };
 
   const loadHomeLayoutSettings = () => {
@@ -759,16 +869,18 @@ function HomeClient() {
                 </button>
                 <button
                   onClick={submitDirectPlay}
-                  disabled={!directPlayUrl.trim()}
+                  disabled={!directPlayUrl.trim() || directPlaySubmitting}
                   className='px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
                 >
-                  开始播放
+                  {directPlaySubmitting ? '处理中...' : '开始播放'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {toast && <Toast {...toast} />}
     </PageLayout>
   );
 }

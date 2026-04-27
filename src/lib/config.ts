@@ -683,6 +683,11 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
         Account: '',
         Password: '',
       },
+      Pan123: {
+        Enabled: false,
+        Account: '',
+        Password: '',
+      },
     };
   }
 
@@ -710,6 +715,14 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
 
   if (!adminConfig.NetDiskConfig.Tianyi) {
     adminConfig.NetDiskConfig.Tianyi = {
+      Enabled: false,
+      Account: '',
+      Password: '',
+    };
+  }
+
+  if (!adminConfig.NetDiskConfig.Pan123) {
+    adminConfig.NetDiskConfig.Pan123 = {
       Enabled: false,
       Account: '',
       Password: '',

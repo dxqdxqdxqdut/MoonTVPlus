@@ -3711,6 +3711,9 @@ const NetDiskConfigComponent = ({
   const [tianyiEnabled, setTianyiEnabled] = useState(false);
   const [tianyiAccount, setTianyiAccount] = useState('');
   const [tianyiPassword, setTianyiPassword] = useState('');
+  const [pan123Enabled, setPan123Enabled] = useState(false);
+  const [pan123Account, setPan123Account] = useState('');
+  const [pan123Password, setPan123Password] = useState('');
 
   useEffect(() => {
     const quark = config?.NetDiskConfig?.Quark;
@@ -3725,6 +3728,9 @@ const NetDiskConfigComponent = ({
     setTianyiEnabled(config?.NetDiskConfig?.Tianyi?.Enabled || false);
     setTianyiAccount(config?.NetDiskConfig?.Tianyi?.Account || '');
     setTianyiPassword(config?.NetDiskConfig?.Tianyi?.Password || '');
+    setPan123Enabled(config?.NetDiskConfig?.Pan123?.Enabled || false);
+    setPan123Account(config?.NetDiskConfig?.Pan123?.Account || '');
+    setPan123Password(config?.NetDiskConfig?.Pan123?.Password || '');
   }, [config]);
 
   const handleSave = async () => {
@@ -3751,6 +3757,11 @@ const NetDiskConfigComponent = ({
             Enabled: tianyiEnabled,
             Account: tianyiAccount,
             Password: tianyiPassword,
+          },
+          Pan123: {
+            Enabled: pan123Enabled,
+            Account: pan123Account,
+            Password: pan123Password,
           },
         }),
       });
@@ -3871,6 +3882,35 @@ const NetDiskConfigComponent = ({
         }
 
         showSuccess(data.message || '天翼云盘账号密码可用', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '校验失败', showAlert);
+        throw error;
+      }
+    });
+  };
+
+  const handleValidatePan123 = async () => {
+    await withLoading('validatePan123NetDisk', async () => {
+      try {
+        const response = await fetch('/api/admin/netdisk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'validate',
+            provider: 'pan123',
+            Pan123: {
+              Account: pan123Account,
+              Password: pan123Password,
+            },
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || '校验失败');
+        }
+
+        showSuccess(data.message || '123网盘账号密码可用', showAlert);
       } catch (error) {
         showError(error instanceof Error ? error.message : '校验失败', showAlert);
         throw error;
@@ -4132,6 +4172,78 @@ const NetDiskConfigComponent = ({
               className={buttonStyles.primary}
             >
               {isLoading('validateTianyiNetDisk') ? '校验中...' : '校验天翼云盘账号密码'}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isLoading('saveNetDisk')}
+              className={buttonStyles.success}
+            >
+              {isLoading('saveNetDisk') ? '保存中...' : '保存配置'}
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <details className='pt-4 border-t border-gray-200 dark:border-gray-700'>
+        <summary className='text-sm font-semibold text-gray-900 dark:text-gray-100 cursor-pointer'>
+          123网盘
+        </summary>
+        <div className='mt-4 space-y-4'>
+          <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+            <div>
+              <h3 className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                启用123网盘
+              </h3>
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                开启后，网盘搜索中的123网盘资源会显示“立即播放”按钮
+              </p>
+            </div>
+            <label className='relative inline-flex items-center cursor-pointer'>
+              <input
+                type='checkbox'
+                checked={pan123Enabled}
+                onChange={(e) => setPan123Enabled(e.target.checked)}
+                className='sr-only peer'
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 dark:peer-focus:ring-teal-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-teal-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+              账号
+            </label>
+            <input
+              type='text'
+              value={pan123Account}
+              onChange={(e) => setPan123Account(e.target.value)}
+              disabled={!pan123Enabled}
+              placeholder='输入123网盘账号'
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed'
+            />
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+              密码
+            </label>
+            <input
+              type='password'
+              value={pan123Password}
+              onChange={(e) => setPan123Password(e.target.value)}
+              disabled={!pan123Enabled}
+              placeholder='输入123网盘密码'
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed'
+            />
+          </div>
+
+          <div className='flex gap-3'>
+            <button
+              onClick={handleValidatePan123}
+              disabled={!pan123Enabled || !pan123Account || !pan123Password || isLoading('validatePan123NetDisk')}
+              className={buttonStyles.primary}
+            >
+              {isLoading('validatePan123NetDisk') ? '校验中...' : '校验123网盘账号密码'}
             </button>
             <button
               onClick={handleSave}

@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.net.http.SslError;
 import android.os.Bundle;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -148,15 +147,6 @@ public class MainActivity extends Activity {
             customViewCallback.onCustomViewHidden();
             customViewCallback = null;
         }
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_MENU && event.getAction() == KeyEvent.ACTION_UP) {
-            webView.reload();
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
     }
 
     @Override

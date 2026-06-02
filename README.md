@@ -222,7 +222,7 @@ services:
     container_name: moontv-kvrocks
     restart: unless-stopped
     volumes:
-      - kvrocks-data:/var/lib/kvrocks/data
+      - kvrocks-data:/var/lib/kvrocks/db
     networks:
       - moontv-network
 networks:
@@ -231,6 +231,7 @@ networks:
 volumes:
   kvrocks-data:
 ```
+（若指定kvrocks-data目录，需要将所挂载的数据目录权限调整为777否则会导致创建数据库失败）
 
 ### SQLite 存储
 
@@ -335,7 +336,7 @@ services:
     container_name: moontv-kvrocks
     restart: unless-stopped
     volumes:
-      - kvrocks-data:/var/lib/kvrocks/data
+      - kvrocks-data:/var/lib/kvrocks/db
     networks:
       - moontv-network
 networks:
@@ -344,7 +345,7 @@ networks:
 volumes:
   kvrocks-data:
 ```
-
+（若指定kvrocks-data目录，需要将所挂载的数据目录权限调整为777否则会导致创建数据库失败）
 ## 配置文件
 
 完成部署后为空壳应用，无播放源，需要站长在管理后台的配置文件设置中填写配置文件，本版本已不支持无数据库运行。

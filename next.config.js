@@ -104,6 +104,9 @@ const createNextConfig = (phase) => {
             'redis',
             '@vercel/postgres',
             'pg',
+            'libsql',
+            '@libsql/isomorphic-fetch',
+            '@libsql/isomorphic-ws',
           ].map((pkg) => [
             pkg,
             path.resolve(
@@ -136,13 +139,14 @@ const createNextConfig = (phase) => {
       });
     }
 
-    // Exclude better-sqlite3, D1, and Postgres modules from client-side bundle
+    // Exclude better-sqlite3, D1, Postgres, and Turso modules from client-side bundle
     if (!isServer) {
       config.externals = config.externals || [];
       config.externals.push({
         'better-sqlite3': 'commonjs better-sqlite3',
         '@vercel/postgres': 'commonjs @vercel/postgres',
         'pg': 'commonjs pg',
+        '@libsql/client': 'commonjs @libsql/client',
       });
 
       config.resolve.alias = {
@@ -152,6 +156,7 @@ const createNextConfig = (phase) => {
         '@/lib/d1-adapter': false,
         '@/lib/postgres.db': false,
         '@/lib/postgres-adapter': false,
+        '@/lib/turso-adapter': false,
       };
     }
 
